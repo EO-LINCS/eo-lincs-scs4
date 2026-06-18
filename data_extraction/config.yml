@@ -18,7 +18,7 @@ datasets:
     open_params:
         band_as_variable: False
     custom_processing:
-      module_path: "scs4_modify_dataset"
+      module_path: "utils"
       function_name: "biomass_xu_rename"
     format_id: netcdf
   # ESA CCI biomass
@@ -55,7 +55,7 @@ data_stores:
   - identifier: storage
     store_id: file
     store_params:
-      root: final
+      root: ../data
   # ESA CCI data store
   - identifier: esa_cci
     store_id: cciodp
