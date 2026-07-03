@@ -1,0 +1,76 @@
+
+### Process LAI data for ILAMB for the 0.125d Europe run
+
+
+#mkdir -p tmp_tif output_nc raw_hdf
+
+#for rarfile in *_HDF.rar; do
+#  unrar x "$rarfile" raw_hdf/
+#done
+
+find raw_hdf/ -name '*.hdf' | sort | while read file; do
+  base=$(basename "$file" .hdf)
+
+  # Step 1: Convert to GeoTIFF
+  /usr/bin/gdal_translate \
+    -a_ullr -180 89.25928 180 -62.81 \
+    -a_srs EPSG:4326 \
+    "$file" "tmp_tif/${base}.tif"
+
+  # Step 2: Subset and resample to Europe region (0.125° resolution)
+/usr/bin/gdalwarp -of netCDF \
+  -te_srs EPSG:4326 \
+  -te -25 35 45 73 \
+  -tr 0.125 0.125 \
+  -tap \
+  -t_srs EPSG:4326 \
+  -r near \
+  -srcnodata 0 -dstnodata 0 \
+  "tmp_tif/${base}.tif" "output_nc/${base}_subset.nc"
+done
+
+mkdir -p scaled_nc
+
+for f in output_nc/*_subset.nc; do
+  base=$(basename "$f" _subset.nc)
+  ncap2 -O -s 'Band1=float(Band1);' "$f" tmp_float.nc
+  cdo mulc,0.01 tmp_float.nc "scaled_nc/${base}_scaled.nc"
+  rm tmp_float.nc
+done
+
+mkdir -p scaled_nc_time
+
+for f in scaled_nc/*_scaled.nc; do
+  base=$(basename "$f" _scaled.nc)
+  datecode=${base:14:7}  # Extracts A1991001 → 1991001
+  year=${datecode:0:4}
+  doy=${datecode:4:3}
+
+  # Convert to ISO date
+  iso_date=$(date -d "${year}-01-01 +$((10#$doy - 1)) days" +%Y-%m-%d)
+
+  # Compute days since 1991-01-01
+  days_since_start=$(( ( $(date -d "$iso_date" +%s) - $(date -d "1991-01-01" +%s) ) / 86400 ))
+
+  echo "netcdf dummy { dimensions: time = UNLIMITED ; variables: double time(time) ; data: time = $days_since_start ; }" > dummy.cdl
+
+  ncgen -o time.nc dummy.cdl
+  
+  cp "$f" tmp.nc
+  ncks -A time.nc tmp.nc
+  
+  ncap2 -O -s 'LAI[time,lat,lon]=0f; LAI(0,:,:)=Band1(:,:);' tmp.nc tmp2.nc
+
+  ncatted -O \
+    -a units,time,o,c,"days since 1991-01-01" \
+    -a calendar,time,o,c,"standard" \
+    -a long_name,time,o,c,"Time" \
+    tmp2.nc
+
+  mv tmp2.nc "scaled_nc_time/${base}_time.nc"
+  rm time.nc dummy.cdl tmp.nc
+done
+
+cdo mergetime scaled_nc_time/*_time.nc LAI_alltime_Europe.nc
+cdo monmean LAI_alltime_Europe.nc LAI_monthly_1991_2020_Europe.nc
+

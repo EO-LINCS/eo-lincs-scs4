@@ -1,0 +1,31 @@
+grid_mappings:
+- identifier: gm
+  bbox:
+  - -25
+  - 35
+  - 45
+  - 73
+  spatial_res: 0.125
+  crs: EPSG:4326
+data_stores:
+- identifier: storage
+  store_id: file
+  store_params:
+    root: data
+- identifier: esa_cci
+  store_id: cciodp
+- identifier: zenodo
+  store_id: zenodo
+  store_params:
+    root: '4161694'
+datasets:
+- identifier: biomass_xu_europe
+  store: zenodo
+  grid_mapping: gm
+  data_id: test10a_cd_ab_pred_corr_2000_2019_v2.tif
+  format_id: netcdf
+- identifier: esa_cci_biomass_europe
+  store: esa_cci
+  grid_mapping: gm
+  data_id: esacci.BIOMASS.yr.L4.AGB.multi-sensor.multi-platform.MERGED.6-0.10000m
+  format_id: netcdf
